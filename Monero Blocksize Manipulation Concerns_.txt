@@ -1,0 +1,252 @@
+﻿An Analysis of Monero's Adaptive Blocksize Mechanism and Potential for Median Manipulation by Mining Pools
+Abstract
+This report investigates concerns regarding the potential for dominant Monero mining pools to manipulate the adaptive blocksize mechanism. The central hypothesis examined is whether these pools could strategically produce artificially small blocks (e.g., the 300KB penalty-free minimum) despite transaction backlogs, thereby suppressing the M100 (median block size of the last 100 blocks) to inflate transaction fees for their benefit. This analysis delves into Monero's blocksize and fee mechanics, the economic incentives influencing miners, the viability of such a collusion strategy, and the impact of recent network events and software updates, particularly around March 2024. The report aims to determine if this manipulation vector is a resolved issue, concluding on the complex interplay of game-theoretic incentives and existing protocol resilience.
+1. Introduction
+1.1 Background: Monero's Unique Approach to Scalability and Fees
+Monero (XMR) is a prominent cryptocurrency prioritizing user privacy and anonymity through advanced cryptographic techniques such as ring signatures, Ring Confidential Transactions (RingCT), and stealth addresses.1 A key feature distinguishing Monero is its dynamic block size mechanism, designed to allow the network to scale its transaction throughput in response to demand.1 Unlike fixed block size limits seen in cryptocurrencies like Bitcoin, which can lead to network congestion and escalating fees during high usage 2, Monero's adaptive system aims for organic growth and more stable fee environments. This adaptability is crucial for its long-term usability and mainstream adoption potential. The system employs a proof-of-work (PoW) algorithm, currently RandomX, which is designed to be ASIC-resistant, promoting more equitable mining opportunities.1
+1.2 The Core Concern: Potential for Block Size Median Manipulation by Concentrated Mining Power
+The impetus for this investigation stems from concerns regarding the potential for major mining pools, by virtue of their significant share of the network's hashrate, to collude and undermine the intended functionality of Monero's adaptive blocksize. Hashrate data provided indicates a notable concentration: supportxmr.com (41.5%), nanopool.org (20.8%), and hashvault.pro (14.5%), collectively controlling approximately 76.8% of the network hashrate. Such concentration is acknowledged as a potential risk factor.5
+The alleged manipulation strategy involves these dominant pools deliberately mining small blocks, specifically at or near the 300KB penalty-free minimum, even when a backlog of pending transactions exists. The purported goal of such actions would be to keep the M100 (the median block size of the last 100 blocks) artificially low. A suppressed M100 could, in theory, create an artificial scarcity of block space. This scarcity might then lead to increased competition among users to have their transactions confirmed, thereby driving up transaction fees from which these colluding pools could potentially profit.
+The user's query fundamentally probes a classic tension within Proof-of-Work (PoW) cryptocurrency systems: the potential divergence between the collective interest in a robust, efficient, and scalable network, and the individual or group profit-maximizing behaviors of dominant miners. Monero's adaptive blocksize and penalty system are designed to align these interests. However, any exploitable loophole that allows dominant actors to profit by hindering the network's natural adaptation poses a serious challenge to the protocol's economic soundness. The high concentration of hashrate is a critical factor, as it lowers the coordination barrier for potential collusion. If a small group of powerful miners discovers a way to generate more profit by preventing this efficient adaptation (e.g., by artificially constraining block supply to inflate fees), it signifies a misalignment of incentives. This misalignment could lead to a sub-optimal network state characterized by higher fees and slower confirmations than the system is designed to offer, potentially damaging user experience and trust. The concentration of hashrate makes such collusion more feasible because fewer parties need to agree and coordinate to exert significant influence over block production and, consequently, the M100.
+1.3 Report Objectives and Structure
+This report will conduct an in-depth investigation into the aforementioned concern. The primary objectives are:
+1. To thoroughly explain Monero's adaptive blocksize algorithm, block reward penalty system, and dynamic fee mechanism.
+2. To analyze the economic incentives for mining pools and assess the game-theoretical viability of the proposed manipulation strategy, including the implications of "bleedover transactions" and strategic "block withholding" (i.e., non-inclusion of transactions).
+3. To evaluate whether colluding miners could realistically profit more from increased fees in artificially small blocks than by processing more transactions in larger blocks, considering associated penalties.
+4. To examine recent network events (such as the March 2024 "spam incident") and software updates for their impact on this potential manipulation.
+5. To determine whether this block size median manipulation strategy is a resolved issue or remains a pertinent concern for the Monero network.
+The report will proceed by first detailing the relevant Monero protocol mechanics, then analyzing the specific manipulation strategy, discussing mitigating factors and counterarguments, incorporating recent developments, and finally offering a concluding assessment.
+2. Monero's Adaptive Block Size and Fee Mechanics
+2.1 The Dynamic Block Size Algorithm: Adapting to Demand
+Monero's block size is not fixed; it dynamically adjusts based on network transaction demand. This adjustment is primarily governed by the M100, which is the median size of the last 100 blocks.2 This M100 serves as a short-term historical reference, allowing the network's capacity to grow if there's sustained demand for larger blocks, or shrink if demand wanes. The maximum size a new block can be is twice the M100 (denoted as 2⋅M100).6 This cap prevents runaway block size growth from a single, exceptionally large block, ensuring a degree of stability in the growth rate.
+2.2 The 300KB Minimum Penalty-Free Block Size: A Baseline Capacity
+A crucial element of Monero's block size mechanism is the minimum penalty-free block size, currently set at 300 kilobytes (KB).8 This means miners can create blocks up to 300KB without incurring any block reward penalty, regardless of how low the M100 might be. For instance, if the M100 is 200KB, a miner can still produce a 300KB block without penalty. This value was increased to 300KB from a previous 60KB to better align with typical transaction sizes after the implementation of RingCT and to provide adequate baseline capacity.8 If the M100 is, for example, 400KB, the penalty mechanism (detailed below) applies to any portion of a new block exceeding 400KB. Therefore, the effective median for penalty calculation, let's term it Meff​, is max(M100,300KB).
+2.3 The Block Reward Penalty: Discouraging Excessive Block Sizes
+To prevent abuse of the dynamic block size, such as spam attacks designed to bloat the blockchain unnecessarily, Monero implements a block reward penalty.2 The penalty is calculated quadratically based on how much the current block's size (B) exceeds the effective median (Meff​). The formula is:
+Penalty=Rbase​⋅((B/Meff​)−1)2
+where Rbase​ is the base block reward.7 The actual reward a miner receives (Rnew​) is then Rnew​=Rbase​−Penalty.
+This quadratic nature means that small increases over Meff​ incur a small penalty, but the penalty grows very rapidly with larger deviations. If B reaches 2⋅Meff​, the entire Rbase​ is theoretically withheld.7 Miners are only incentivized to include transactions in the penalized portion of a block if the collective fees from those additional transactions are greater than the penalty incurred.8
+The 300KB minimum penalty-free size can inadvertently act as a "sticky" point for the M100 if there isn't sufficient economic incentive (i.e., high enough fees from enough transactions) to consistently push block sizes beyond it. If M100 is below 300KB, miners face no penalty for producing 300KB blocks. If a dominant group of miners chooses to only produce 300KB blocks, they can effectively stall the M100's growth around this value, unless other miners are strongly incentivized by very high fees to produce larger blocks and pay the associated (albeit initially small) penalties. The max(M100,300KB) rule is critical here. If M100 drops to 100KB due to sustained small block mining by a cartel, other miners wanting to include more transactions still get a 300KB block penalty-free. They only pay penalties for exceeding 300KB. This ensures a minimum capacity is always available without penalty. The colluding pools, by mining 300KB blocks, also pay no penalty. The M100 would reflect their actions. For M100 to rise, other miners must find it profitable to exceed 300KB and pay penalties calculated against this 300KB baseline.
+2.4 Monero's Dynamic Fee Mechanism: Responding to Network Conditions
+Monero wallets typically calculate transaction fees based on a dynamic algorithm that considers network conditions, including the current block size median and base reward.3 An older version of the formula for the fee per kB is given as:
+Fmin_c​=(R/R0​)⋅(M0​/M)⋅F0​⋅(60/300)⋅4
+where R is the current base reward, R0​ is the reference base reward (10 XMR), M0​ is the minimum block size limit (300KB), M is the current block size limit (related to M100), and F0​ is a constant (0.002 XMR/kB).9 This illustrates that as the effective block size M increases, the recommended fee per kB tends to decrease. Conversely, if M is low, fees per kB are higher, creating a market-based mechanism where users pay more during congestion. There are typically multiple fee priority levels (e.g., unimportant/slow, normal, fast, fastest) that wallets can use, applying multipliers to this base dynamic fee.10
+The dynamic fee algorithm, by design, recommends higher fees per kilobyte when the median block size (M) is low. This creates a potential perverse incentive: if miners can successfully suppress the median block size M, they directly contribute to a network state where higher transaction fees are recommended and likely paid by users needing timely confirmation. This directly aligns with the user's concern that colluding pools might aim to keep medians low to "collect increased fees." This conflicts with the broader network goal of scalability and low fees through adaptive block sizes. The system is designed so that when Meff​ is low, fees go up to signal scarcity. If miners can cause Meff​ to be low, they trigger this higher fee state. The question then becomes if the revenue from these higher fees on smaller blocks (up to 300KB penalty-free, or slightly larger with small penalties) is greater than the revenue from more transactions at lower fees in larger blocks (which would also raise Meff​ and thus lower future fee recommendations). This is the central economic tension.
+Table 1: Illustrative Block Reward Penalty Calculation
+To illustrate the penalty mechanism, consider the current tail emission base reward (Rbase​) of 0.6 XMR.6 The Meff​ is max(M100,300KB).
+M100 (KB)
+	BlockSize (B) (KB)
+	Meff​ (KB)
+	(B/Meff​)
+	Penalty Factor ((B/Meff​)−1)2
+	Penalty (XMR)
+	Net Reward (XMR)
+	200
+	300
+	300
+	1.00
+	0.0000
+	0.0000
+	0.6000
+	300
+	300
+	300
+	1.00
+	0.0000
+	0.0000
+	0.6000
+	300
+	313
+	300
+	1.0433
+	0.00188
+	0.0011
+	0.5989
+	300
+	400
+	300
+	1.3333
+	0.1111
+	0.0667
+	0.5333
+	400
+	413
+	400
+	1.0325
+	0.00106
+	0.0006
+	0.5994
+	400
+	600
+	400
+	1.50
+	0.2500
+	0.1500
+	0.4500
+	400
+	800
+	400
+	2.00
+	1.0000
+	0.6000
+	0.0000
+	This table clearly demonstrates the quadratic increase in penalty as block size exceeds the Meff​ and shows that no penalty is applied for blocks up to 300KB if M100 is below or at 300KB. It also shows how the penalty kicks in for sizes above M100 when M100 itself is above 300KB. Abstract formulas can be hard to grasp; concrete numbers make the penalty mechanism tangible. It shows that while a small excess (like 313KB over 300KB) has a very minor penalty, larger proportional excesses rapidly increase the penalty, up to the full base reward. This is fundamental to understanding the economic calculations miners make.
+3. Analysis of the Potential Block Size Suppression Strategy by Major Mining Pools
+The user query is predicated on the power of the top pools. Quantifying this power with the provided data is essential. If the hashrate were highly decentralized, collusion among 2-3 pools would have minimal impact. With over 75% control, their block creation choices become highly influential on the M100.
+Table 2: Monero Mining Pool Hashrate Distribution (as per User Query)
+Pool
+	Hashrate (%)
+	supportxmr.com
+	41.5%
+	nanopool.org
+	20.8%
+	hashvault.pro
+	14.5%
+	Top 3 Combined
+	76.8%
+	Other Pools
+	23.2%
+	This table immediately establishes the context of hashrate concentration. It visually underscores that collusion among a very small number of entities (just three pools) could give them control over the vast majority of blocks produced, making the proposed manipulation theoretically feasible from a control perspective.
+3.1 The Proposed Manipulation Scenario Detailed
+The core of the concern involves the top 2-3 mining pools, which collectively control a significant majority of Monero's hashrate (Table 2). The strategy posits that these pools would collude to consistently mine blocks no larger than the 300KB penalty-free minimum, irrespective of any existing transaction backlog in the mempool. The intended outcome of this action is to artificially suppress the M100. By ensuring a majority of blocks are small, the M100 would tend to hover around or not significantly exceed 300KB. The ultimate objective for the colluding pools would be to create artificial scarcity of block space. This scarcity, in turn, would intensify competition among users for transaction inclusion, leading to users paying higher transaction fees to ensure their transactions are prioritized. The pools would then profit from these elevated fees.
+3.2 Economic Incentives and Viability of Deliberate Small Blocks
+The central question is whether such collusion could be more profitable for the participating pools than mining larger blocks that include more transactions (and thus more fees, albeit potentially at a lower per-transaction rate and possibly incurring penalties).
+JollyMort's research provides a framework for miner earnings, considering penalties and fees.7 It defines a "neutral fee" (Fn_c​=(R/M)⋅(W−1)) required to make a block size expansion (W=B/M) neutral to miner earnings compared to mining a block of size M. It also defines an "optimum fee" (Fo_c​=2⋅(R/M)⋅(W−1)) that maximizes additional earnings from expansion. These formulas show that miners are incentivized to expand block size if transaction fees are sufficiently high. The collusive strategy aims to create these high fees by restricting supply. The pools would be betting that the increase in fee rate on a smaller volume of transactions (within 300KB) outweighs the total fees from a larger volume of transactions at a lower rate (in blocks >300KB, potentially penalized).
+A GitHub discussion highlights that maintaining an already inflated median block size by "stuffing" blocks with 0-fee transactions can be very cheap.8 This is cited as an incentive for pools to keep medians high for their own 0-fee payouts or faster peak time responses. The user's concern is different: suppressing the median by forgoing fee-paying transactions. The "cost" here is the opportunity cost of the fees not collected from transactions that are deliberately excluded from blocks to keep them at 300KB.
+Interestingly, one argument suggests that "a block size that is economically meaningful with respect to demand from paying transactions actually benefits miners collectively by creating scarcity and fee pressure".8 This supports the motive for the user's feared manipulation. However, the same source also states, "It is not clear that there is an incentive for a miner to want to subvert this [natural scarcity arising from demand meeting capacity]." This suggests a complex interplay: miners benefit from some scarcity, but actively engineering extreme scarcity might not be straightforwardly optimal if it means forgoing immediate fee revenue.
+3.3 Impact of "Bleedover Transactions" on Minor Pools
+If major pools artificially restrict their block sizes to 300KB, transactions that would otherwise have been included (especially those with fees not high enough to make the cut in the artificially scarce 300KB space) form a growing backlog. These "bleedover" transactions would then be available for minor, non-colluding pools to pick up.
+The consequences of this include potentially longer confirmation times for users whose transactions are not prioritized by major pools. Minor pools could see an increase in their fee revenue by including these transactions, possibly mining blocks larger than 300KB if profitable after penalties. However, minor pools, due to their smaller collective hashrate (approximately 23.2% plus any unlisted smaller entities), might struggle to clear a very large backlog quickly if the major pools are severely restricting supply. Their actions would, however, gradually contribute to raising the M100, working against the suppression.
+3.4 "Block Withholding" by Major Pools: Strategic Non-Inclusion
+In the context of this query, "block withholding" refers to a deliberate choice by the colluding pools not to include otherwise valid, fee-paying transactions that are available in the mempool, specifically to ensure their mined blocks do not exceed the 300KB target (or another artificially low size). This is distinct from the traditional definition of block withholding where individual pool miners submit proofs of work (shares) to the pool but do not submit actual valid blocks they find, thereby defrauding the pool.13 The user's concern is about pool-level strategy, not individual miner misbehavior within a pool. This strategic non-inclusion is the direct mechanism by which the M100 would be suppressed.
+3.5 Scenario: Colluding Miners Collecting Increased Fees from Artificially Small Blocks
+If the M100 is successfully kept low (e.g., at or near 300KB) by the colluding supermajority, the dynamic fee algorithm 9 would naturally lead to wallets recommending higher per-kilobyte transaction fees due to the perceived network congestion and block space scarcity. Colluding pools would then fill their (penalty-free) 300KB blocks with transactions paying these inflated fees. They gain on the fee rate but lose on the transaction volume they could have processed in larger blocks.
+The critical economic calculation for the colluding pools is whether the profit from small blocks with inflated fees exceeds the profit from larger blocks with normal fees minus penalties:
+ProfitSmallBlock​=(Feesfrom_300KB_at_InflatedRate​)+Rbase​
+ProfitLargeBlock​=(Feesfrom_LargerBlock_at_NormalRate​)+Rbase​−Penaltyfor_LargerBlock​
+The strategy is viable if ProfitSmallBlock​>ProfitLargeBlock​ consistently for the colluding pools.
+Table 3: Miner Incentive Analysis: Small vs. Large Blocks (Illustrative)
+This table aims to model the economic decision. Assumptions: Rbase​ = 0.6 XMR. Average transaction size = 2.5 KB. Default fee per kB (Fnormal​) calculated using Monero's dynamic fee formula with M = current M100. Inflated fee per kB (Finflated​) = 2⋅Fnormal​ (example).
+Scenario
+	M100 (KB)
+	BlockSize (KB)
+	Meff​ (KB)
+	Transactions per Block (approx)
+	Fee Rate (XMR/kB)
+	Total Fees (XMR)
+	Penalty (XMR)
+	Net Reward (XMR)
+	A: Collusion (Small Blocks, Inflated Fees)
+	300
+	300
+	300
+	120
+	Finflated​ (M=300)
+	300⋅Finflated​
+	0
+	0.6+Fees
+	B: Honest Mining (Responsive, Normal Fees)
+	300
+	400
+	300
+	160
+	Fnormal​ (M=300)
+	400⋅Fnormal​
+	(Calculated)
+	0.6+Fees−Pen
+	C: Network Adapted (Larger Median, Normal Fees)
+	500
+	500
+	500
+	200
+	Fnormal​ (M=500)
+	500⋅Fnormal​
+	0
+	0.6+Fees
+	Note: Fnormal​(M=300) will be higher than Fnormal​(M=500) as per the dynamic fee formula.
+This table provides a quantitative, albeit simplified, comparison to assess if the higher fee rate on smaller blocks can compensate for the lost volume and lack of penalty, versus mining larger blocks with more transactions at lower standard rates but possibly incurring penalties. The user's core question is about profitability. This table directly addresses that by comparing potential revenue under different strategies. It highlights the trade-offs: higher fee rates vs. more transactions, and the impact of penalties. The dynamic nature of Fnormal​ based on M is crucial; a lower M (from suppression) leads to a higher Fnormal​ and thus a higher Finflated​.
+3.6 Game-Theoretic Considerations and Sustainability
+The success of this manipulation hinges on the fee elasticity of demand for Monero block space. If users are highly fee-sensitive and a substantial portion of transactions causing the backlog are low-fee, they might simply wait or be priced out, reducing the total fees collectible by the colluding pools. If, however, many users are willing to pay significantly higher fees for urgent inclusion, the strategy becomes more attractive to the pools. The existence of "bleedover" to minor pools also means the colluding pools are not capturing the entirety of the fee market. If users refuse to pay high fees, the colluding pools won't earn much from their small blocks. They might earn more by processing more transactions at lower fees. The behavior of users (their willingness to pay) is a critical unknown that affects the profitability of the manipulation.
+Sustained block suppression by a dominant cartel, even if marginally profitable in the short term, carries significant risks for the Monero ecosystem. It could lead to a perception of an unreliable and expensive network, deterring adoption and potentially depressing XMR's value. This, in the long run, would harm all miners, including the colluding ones. However, the classic "tragedy of the commons" or cartel dilemma suggests that short-term individual/group incentives can sometimes override long-term collective interests, especially if the colluding entities believe they can extract value before significant negative consequences materialize or if they discount future earnings heavily. The discussion in 15 about Bitcoin miners strategically managing capacity to enhance fee revenue, even if it means not always running at full capacity, suggests such strategic behavior is not unprecedented in PoW systems. A successful cryptocurrency relies on user trust and a good user experience. If major pools actively degrade this for short-term gain, they risk "killing the golden goose." However, entities might act on short-term profit motives, especially if they believe the negative repercussions are distant or can be mitigated. The fact that similar strategic capacity management has been theorized or observed in Bitcoin 15 makes this concern for Monero more credible.
+4. Mitigating Factors and Counterarguments Against Sustained Manipulation
+4.1 The Intrinsic Design of the Block Reward Penalty
+The quadratic nature of the penalty is specifically designed to make large deviations from the Meff​ prohibitively expensive.7 While the user's scenario focuses on pools mining at the 300KB penalty-free limit (thus avoiding penalties themselves), this same penalty system affects any other miner attempting to include more transactions. If colluding pools keep the M100 artificially at 300KB, an honest miner wishing to create a, say, 400KB block to include more transactions would face a penalty calculated against this 300KB median. While the penalty for a modest 100KB increase is not extreme initially (e.g., 0.0667 XMR in Table 1, assuming a 0.6 XMR base reward), it still impacts the profitability of including those extra transactions unless their fees are substantial.
+However, as noted in older discussions 8 (when base rewards were higher and average transaction sizes were larger), the penalty to increase block size by one typical transaction when the median is 300KB can be relatively small and comparable to typical transaction fees. For example, with an 8.24 XMR base reward, increasing the block by 13KB over a 300KB median incurred a penalty of ~0.0155 XMR.8 This implies that if sufficient fee-paying transactions exist, the median can grow beyond 300KB, even if slowly, as honest miners find it profitable to include them.
+4.2 Economic Incentives for Non-Colluding Miners (The "Competitive Fringe")
+If major pools deliberately leave fee-paying transactions in the mempool (the "bleedover"), the remaining ~23.2% of hashrate (plus smaller unlisted pools) has a direct economic incentive to include these transactions. These non-colluding miners would capture the fees foregone by the major pools. By mining blocks larger than the suppressed median (if profitable after considering penalties), they would also exert upward pressure on the M100, acting as a natural counter-force to the manipulation. The effectiveness of this counter-force depends on the size of the competitive fringe and the magnitude of the transaction backlog and associated fees.
+4.3 Distinction: Cost of "Stuffing" vs. Opportunity Cost of "Suppressing"
+The very low costs often cited in discussions 8 refer to the cost of maintaining an already inflated median by filling excess space with 0-fee transactions (e.g., for pool payouts). This is cheap because the space is already "paid for" by the high median. The user's concern involves suppressing the median by mining small 300KB blocks. The primary "cost" to the colluding pools is the opportunity cost – the fees they are not collecting from transactions they deliberately exclude to keep blocks small. This opportunity cost must be less than the gains from inflated fees on the transactions they do include.
+4.4 Community Vigilance and Developer Response
+The Monero community, including the Monero Research Lab (MRL), actively monitors network behavior and analyzes potential economic vulnerabilities.8 The "possible spam incident" in March 2024 was promptly noted and discussed by the MRL 16, leading to analysis and software updates. This demonstrates a responsive ecosystem.
+4.5 Long-Term vs. Short-Term Rationality of Mining Pools
+A sustained strategy that degrades network performance (high fees, slow confirmations) could harm Monero's overall adoption and market value. This would, in the long term, reduce the profitability of mining XMR for all pools, including those involved in collusion.8 However, this relies on pools prioritizing long-term ecosystem health over potentially significant short-term gains, which is not always guaranteed, especially with high market concentration.
+4.6 Weakening Penalty Effectiveness at High Medians/Low Rewards
+While the user's query focuses on suppressing the median, the broader health of the penalty system is relevant. Discussions in 8 and 8 raise concerns that the block reward penalty becomes less effective as the median block size gets very large and/or the base block reward diminishes over time (pre-tail emission). If the penalty (the Rbase​ component) shrinks significantly, the cost to manipulate the median could decrease. The tail emission of 0.6 XMR 6 establishes a permanent minimum base reward, which helps maintain a floor for penalty calculations, mitigating this concern to some extent post-May 2022. The penalty is a product of the Rbase​ and a factor related to B/Meff​. If Rbase​ becomes very small, the absolute XMR value of the penalty also becomes small, even if the percentage factor is large. This could make certain manipulations cheaper. The tail emission ensures the Rbase​ doesn't go to zero, which is crucial for the long-term effectiveness of the penalty system.
+5. Recent Developments and Potential Countermeasures (Post-March 2024 Spam Incident)
+5.1 The March 2024 "Spam Incident" and Observed Network Behavior
+In March 2024, the Monero network experienced a significant surge in transaction volume, with daily transactions increasing from approximately 15,000-25,000 to 115,000-140,000.18 This was widely suspected to be a spam or "black marble" flooding attack.16 The average block size increased significantly, and the mempool saw congestion.19 This event tested the resilience of Monero's adaptive block size and fee mechanisms.
+The Monero Research Lab (MRL) meeting on March 13, 2024, included "Possible spam incident" as a key discussion topic. Logs from this meeting 16 indicate observations of "unusual fee behavior," with a notable increase in transactions paying the 320 nanoneros/byte fee tier between March 12th and 13th. Rucknium noted, "The suspected spammer is letting the block size algorithm's 100 block median fall down. Not sure if it's deliberate or accidental. That's limiting the block growth rate".16 This observation is pertinent to the user's query about median suppression.
+5.2 Software Updates in Response (Monero Core v0.18.3.2 / GUI v0.18.3.2 - March 2024)
+These releases, dated March 9, 2024, included several bug fixes relevant to network health, transaction handling, and fee mechanisms.21
+* Wallet-Side Fee Logic Adjustments (PR #9220 monero, #4283 monero-gui):
+   * Wallet: adjust fee during backlog when set to default (#9220).21
+   * Wallet: fix set priority getting ignored during transfers (#9220).21
+   * GUI: Fix automatic fee selection (#4283).22
+   * Explanation: These changes aim to make wallet fee selection more responsive to network congestion. As per Rucknium's comment in the March 13 MRL meeting, "The auto fee fix to the GUI/CLI wallet only increases fee from 20 to 80 nanoneros per byte when the mempool is congested".16 This is a client-side change, requiring users to update their wallets. Developer 'chaserene' suggested this "fee patch" would work against spammers once enough users update their wallets.16
+   * Implication for Manipulation: If wallets automatically pay higher fees during congestion (even if congestion is artificially induced by small blocks), it could make the suppression strategy more profitable for colluding pools, as they would collect these higher fees. However, it also means users are more likely to get their transactions included, potentially pushing block sizes up if non-colluding miners include them. Developer 'selsta' clarified in GitHub issue #9293 that "Automatic fee selection switches between fee level 0 and 1. If there are a lot of fee level 1 transactions users have to manually set a higher fee".24 This suggests the automatic escalation of fees by the patch is limited.
+* Daemon Transaction Pool Management (PR #9226 monero):
+   * Daemon: fix a bug that causes transactions to remain in the txpool (#9226).21
+   * Daemon: fix --max-txpool-weight feature (#9226).21
+   * Explanation: These fixes improve the health and resilience of the transaction pool, preventing it from being clogged by stuck transactions or growing excessively. This is important for overall network stability and spam resistance. Discussions in GitHub issue #9317 around May 2024 regarding daemon Out-Of-Memory (OOM) issues due to large (e.g., 150 inputs/2 outputs) transactions filling the txpool indicate ongoing challenges with txpool management under certain types of stress, distinct from the March fixes but relevant to overall network resilience.25
+   * Implication for Manipulation: A more robust txpool makes it harder for general spam to cripple the network. It doesn't directly prevent the median suppression strategy but ensures the network remains functional, allowing non-colluding miners to pick up transactions.
+The March 2024 "fee patch" (wallet-side fee adjustments) and daemon fixes, while beneficial for network health and user experience during congestion, do not fundamentally alter the core block reward penalty mechanism that a collusion strategy would target. They might make the outcome of such a strategy (higher fees collected) more immediate if users update wallets, but don't change the cost-benefit analysis for the colluding pools regarding penalty vs. foregone fees. The core manipulation relies on the block reward penalty (or lack thereof for 300KB blocks) and the M100. Wallet-side fee adjustments are a reaction to network conditions, not a change in the consensus rules governing block creation incentives for miners. Daemon fixes improve robustness but don't change these fundamental incentives either.
+5.3 Long-Term Median (LTM) / Dual Median Proposals
+The concept of introducing a longer-term median (e.g., M100000 or a similar long-term block weight window) in addition to the short-term M100 to govern fee calculations and/or block penalty calculations has been discussed within the Monero community.17 The goal is to make rapid, sustained block size increases (often associated with spam attacks) more expensive by basing fees or penalties on a more stable, slowly adjusting LTM.
+MRL discussions, such as in GitHub Issue #70 (opened Feb 2020) and 2019 meeting logs, show extensive debate on various LTM approaches, including "dual median" and "long-term weight" concepts.17 The core idea is that the penalty (or fee baseline) should not solely depend on the M100, which can be manipulated relatively quickly. An LTM would provide a more resilient baseline. For instance, one proposal in MRL Issue #70 suggested a penalty formula like P=B⋅((block_weight−CM)/ML)2, where CM is a cumulative median (related to M100) and ML is the long-term median.17 This would make the "penalty zone" scale with the LTM while the "penalty-free zone" could still fluctuate with the short-term median.
+* Current Implementation Status of LTM in Penalty Calculation: The official Monero technical specifications consistently state the block reward penalty is based on the "median size of the last 100 blocks (M100)".6 There is no mention of an LTM or dual median mechanism being part of the current consensus rule for block reward penalty calculation. JollyMort's 2017 draft also refers to M100 and a then-60KB minimum.7 While MRL Issue #70 discusses using LTM for penalty calculations and basing minimum fees on LTM, its direct implementation into consensus rules for penalties is not confirmed by current technical specifications. The "long term block weights" mentioned in 17 appear to be part of the fee algorithm to mitigate the "big bang attack" rather than the block reward penalty itself. Therefore, while heavily discussed for improving spam resistance and fee stability, there is no clear evidence in the provided materials that an LTM component has been incorporated into the consensus rule for calculating the block reward penalty itself. It may influence fee algorithms used by wallets/nodes, but the fundamental penalty remains M100-driven.
+The ongoing discussion about LTM indicates that the Monero community is aware of potential weaknesses in the M100-only system for handling certain adversarial behaviors or extreme network conditions. The fact that these discussions are still active or have been revisited suggests that the current M100-based system might not be considered fully robust against all theoretical attack vectors related to block size and fees, even if a specific LTM proposal for penalties hasn't reached consensus or been implemented. If the M100 system were perfectly robust, there would be less impetus to research and discuss alternatives like LTM for penalty calculations. The persistence of these discussions implies a recognized area for potential improvement in Monero's economic security model regarding block size dynamics.
+6. Conclusion: Is Block Size Median Manipulation a Resolved Issue?
+6.1 Viability of the Manipulation Strategy
+The proposed strategy of major pools colluding to artificially keep block medians low (e.g., at 300KB) to inflate fees is theoretically plausible given the high hashrate concentration of the top 3 pools (approximately 76.8%). Coordinated action by these pools to mine only 300KB blocks would suppress the M100 towards 300KB. The economic viability of such a strategy is complex and depends on fee elasticity, the volume of high-priority transactions, and the actions of non-colluding miners. JollyMort's analysis suggested that a 51% coalition could veto median increases, which implies they could also suppress it if they chose to mine smaller blocks.29 The argument that creating scarcity benefits miners collectively by increasing fee pressure lends some credence to the motive.8
+6.2 Effectiveness of Current Deterrents
+The primary deterrent is the opportunity cost of not including more fee-paying transactions by mining larger blocks. If a significant backlog of transactions paying fees higher than the marginal penalty exists, colluding pools would be forgoing revenue. Non-colluding miners (approximately 23.2% hashrate plus smaller unlisted pools) would be incentivized to pick up these "bleedover" transactions, which would counteract the median suppression over time, albeit potentially slowly if the backlog is large.
+The March 2024 wallet/daemon updates improve network resilience and fee responsiveness but do not fundamentally change the core penalty mechanism targeted by the described collusion.21 The "fee patch" is a wallet-side adjustment and relies on user adoption.16 The current block reward penalty based on M100 and the 300KB penalty-free minimum remain the key consensus rules.6 There is no evidence of a Long-Term Median (LTM) mechanism being part of the penalty calculation in current consensus rules, though it has been discussed for fee algorithms and spam resistance.17
+6.3 Final Determination
+The strategy of major pools colluding to artificially keep block medians low (e.g., at 300KB) to inflate fees is not definitively resolved and remains a theoretical concern, though its practical, sustained profitability is debatable and subject to dynamic network conditions.
+While the Monero protocol has mechanisms to incentivize block size growth with demand, a strong, coordinated cartel of miners controlling a supermajority of hashrate could temporarily influence the M100 by consistently mining small blocks. The primary defense is economic: such a strategy is only viable if the increased fee revenue from artificially scarce small blocks outweighs the foregone fees from transactions that are not included (and potentially picked up by competing miners) plus any negative long-term impact on Monero's adoption and price.
+Developer discussions acknowledge that the penalty system's effectiveness can vary and that miners could be incentivized to keep medians high with 0-fee transactions (a related but distinct issue of median manipulation).8 The concern about keeping medians low is less directly addressed as "resolved" in the available information, but the underlying economic game theory is similar. The lack of LTM in the core penalty consensus means the M100 remains the primary driver, which is, by design, responsive to recent block sizes. If those recent block sizes are controlled by a cartel, the M100 will reflect that.
+The issue is less about a technical flaw that can be "patched" in a simple sense and more about the complex, evolving game-theoretic balance of incentives in a decentralized system with significant hashrate concentration. While direct, sustained profitability of the described attack is not proven and faces counter-incentives, the potential for influential pools to manipulate the median to some degree, even if temporarily or sub-optimally for the network as a whole, cannot be entirely dismissed without stronger, implemented consensus-level countermeasures against such specific collusion. The March 2024 software updates primarily addressed wallet behavior and txpool robustness, not the fundamental miner incentive structure for block size selection under collusion.
+Recommendations
+* Continued monitoring of mining pool centralization and block size/fee dynamics by the Monero community and MRL is essential.
+* Further research into the economic game theory of median suppression, particularly quantifying the exact profit/loss scenarios under various fee elasticities and non-colluding miner responses, would be beneficial.
+* A re-evaluation of LTM or other mechanisms for the block reward penalty calculation (not just fee algorithms) could be considered to make the baseline median more resilient to short-term manipulation by a dominant mining coalition, if empirical evidence or stronger theoretical models suggest the risk is significant. MRL Issue #70 and related discussions on "dual median" provide relevant starting points.17
+Works cited
+1. Unraveling the Mystery: What Algorithm Powers XMR and Its Impact on Cryptocurrency, accessed May 24, 2025, https://locall.host/what-algorithm-is-xmr/
+2. What is Monero? What is XMR? | Cryptoexchange.com, accessed May 24, 2025, https://cryptoexchange.com/learning/what-is-monero
+3. Your Guide to Monero, and Why It Has Great Potential : r/CryptoCurrency - Reddit, accessed May 24, 2025, https://www.reddit.com/r/CryptoCurrency/comments/7ra409/your_guide_to_monero_and_why_it_has_great/
+4. How Monero Solved the Block Size Problem That Plagues Bitcoin - LocalMonero, accessed May 24, 2025, https://localmonero.co/knowledge/dynamic-block-size
+5. Monero Price Prediction 2025: XMR Defies Market Slump With Gains - CCN.com, accessed May 24, 2025, https://www.ccn.com/monero-xmr-price-prediction/
+6. Monero Technical Specification, accessed May 24, 2025, https://docs.getmonero.org/technical-specs/
+7. Monero Dynamic Block Size and Dynamic Minimum Fee - DRAFT.md - GitHub, accessed May 24, 2025, https://github.com/JollyMort/monero-research/blob/master/Monero%20Dynamic%20Block%20Size%20and%20Dynamic%20Minimum%20Fee/Monero%20Dynamic%20Block%20Size%20and%20Dynamic%20Minimum%20Fee%20-%20DRAFT.md
+8. [Enhancement] Improvements to the block reward penalty and minimum block size #1878, accessed May 24, 2025, https://github.com/monero-project/monero/issues/1878
+9. A note on fees | Monero безопасна, конфиденциальна и ..., accessed May 24, 2025, https://www.getmonero.org/ru/2017/12/11/A-note-on-fees.html
+10. What are the standard fee multiplier levels? - Monero Stack Exchange, accessed May 24, 2025, https://monero.stackexchange.com/questions/11657/what-are-the-standard-fee-multiplier-levels
+11. Considering a fee increase for the next hard fork · Issue #9240 · monero-project/monero - GitHub, accessed May 24, 2025, https://github.com/monero-project/monero/issues/9240
+12. Tail Emission | Moneropedia | Monero - secure, private, untraceable, accessed May 24, 2025, https://www.getmonero.org/resources/moneropedia/tail-emission.html
+13. Block withholding - Bitcoin Optech, accessed May 24, 2025, https://bitcoinops.org/en/topics/block-withholding/
+14. Countering Block Withholding Attack Efficiently - Cryptology ePrint Archive, accessed May 24, 2025, https://eprint.iacr.org/2018/1211.pdf
+15. Miner Collusion and the Bitcoin Protocol - Cowles Foundation for Research in Economics, accessed May 24, 2025, https://cowles.yale.edu/sites/default/files/2022-11/parlour-miner-collusion-and-bitcoin-protocol.pdf
+16. Monero Research Lab Meeting - Wed 13 March 2024, 17:00 UTC · Issue #978 - GitHub, accessed May 24, 2025, https://github.com/monero-project/meta/issues/978
+17. Reduce minimum fee variability · Issue #70 · monero-project/research-lab - GitHub, accessed May 24, 2025, https://github.com/monero-project/research-lab/issues/70
+18. potential measures against a black marble attack · Issue #119 · monero-project/research-lab, accessed May 24, 2025, https://github.com/monero-project/research-lab/issues/119
+19. Monero Spam Recap - Reddit, accessed May 24, 2025, https://www.reddit.com/r/Monero/comments/1bak3to/monero_spam_recap/
+20. The Rise of Monero: Traceability, Challenges, and Research Review | TRM Blog, accessed May 24, 2025, https://www.trmlabs.com/resources/blog/the-rise-of-monero-traceability-challenges-and-research-review
+21. Monero 0.18.3.2 'Fluorine Fermi' released, accessed May 24, 2025, https://www.getmonero.org/2024/03/09/monero-0.18.3.2-released.html
+22. Monero GUI 0.18.3.2 'Fluorine Fermi' released, accessed May 24, 2025, https://www.getmonero.org/2024/03/09/monero-GUI-0.18.3.2-released.html
+23. Monero Software Releases, accessed May 24, 2025, https://www.getmonero.org/blog/tags/releases.html
+24. Suggestion: When there is a backlog at the current fee level, print a menu showing backlogs and costs at each fee level · Issue #9293 · monero-project/monero - GitHub, accessed May 24, 2025, https://github.com/monero-project/monero/issues/9293
+25. A lot of 150/2 transactions in the txpool causes memory spike / OOM · Issue #9317 - GitHub, accessed May 24, 2025, https://github.com/monero-project/monero/issues/9317
+26. Exploring Trustless zk-SNARKs for Monero's payment protocol #100 - GitHub, accessed May 24, 2025, https://github.com/monero-project/research-lab/issues/100
+27. Logs for the Monero Research Lab Meeting Held on 2019-02-04, accessed May 24, 2025, https://web.getmonero.org/el/2019/02/04/logs-for-the-Monero-Research-Lab-meeting-held-on-2019-02-04.html
+28. Logs for the Monero Research Lab Meeting Held on 2019-01-14, accessed May 24, 2025, https://www.getmonero.org/ru/2019/01/14/logs-for-the-Monero-Research-Lab-meeting-held-on-2019-01-14.html
+29. dynamic blocksize limit - How is the quadratic miners penalty ..., accessed May 24, 2025, https://monero.stackexchange.com/questions/193/how-is-the-quadratic-miners-penalty-calculated
